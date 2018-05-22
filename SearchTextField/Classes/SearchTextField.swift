@@ -65,7 +65,7 @@ open class SearchTextField: UITextField {
         var items = [SearchTextFieldItem]()
         
         for value in strings {
-            items.append(SearchTextFieldItem(title: value))
+            items.append(DefaultSearchTextFieldItem(title: value))
         }
         
         filterItems(items)
@@ -407,9 +407,9 @@ open class SearchTextField: UITextField {
                 if inlineMode, let filterAfter = startFilteringAfter {
                     let stringElements = self.text?.components(separatedBy: filterAfter)
                     
-                    self.text = stringElements!.first! + filterAfter + firstElement.title
+                    self.text = stringElements!.first! + filterAfter + firstElement.getTitle()
                 } else {
-                    self.text = firstElement.title
+                    self.text = firstElement.getTitle()
                 }
             }
         }
@@ -438,17 +438,17 @@ open class SearchTextField: UITextField {
             
             if !inlineMode {
                 // Find text in title and subtitle
-                let titleFilterRange = (item.title as NSString).range(of: text!, options: comparisonOptions)
-                let subtitleFilterRange = item.subtitle != nil ? (item.subtitle! as NSString).range(of: text!, options: comparisonOptions) : NSMakeRange(NSNotFound, 0)
+                let titleFilterRange = (item.getTitle() as NSString).range(of: text!, options: comparisonOptions)
+                let subtitleFilterRange = item.getSubtitle() != nil ? (item.getSubtitle()! as NSString).range(of: text!, options: comparisonOptions) : NSMakeRange(NSNotFound, 0)
                 
                 if titleFilterRange.location != NSNotFound || subtitleFilterRange.location != NSNotFound || addAll {
-                    item.attributedTitle = NSMutableAttributedString(string: item.title)
-                    item.attributedSubtitle = NSMutableAttributedString(string: (item.subtitle != nil ? item.subtitle! : ""))
+                    item.setAttributedTitle(attributedTitle: NSMutableAttributedString(string: item.getTitle()))
+                    item.setAttributedSubtitle(attributedSubtitle: NSMutableAttributedString(string: (item.getSubtitle() != nil ? item.getSubtitle()! : "")))
                     
-                    item.attributedTitle!.setAttributes(highlightAttributes, range: titleFilterRange)
+                    item.getAttributedTitle()!.setAttributes(highlightAttributes, range: titleFilterRange)
                     
                     if subtitleFilterRange.location != NSNotFound {
-                        item.attributedSubtitle!.setAttributes(highlightAttributesForSubtitle(), range: subtitleFilterRange)
+                        item.getAttributedSubtitle()!.setAttributes(highlightAttributesForSubtitle(), range: subtitleFilterRange)
                     }
                     
                     filteredResults.append(item)
@@ -465,11 +465,11 @@ open class SearchTextField: UITextField {
                     }
                 }
                 
-                if item.title.lowercased().hasPrefix(textToFilter) {
-                    let indexFrom = textToFilter.index(textToFilter.startIndex, offsetBy: textToFilter.characters.count)
-                    let itemSuffix = item.title[indexFrom...]
+                if item.getTitle().lowercased().hasPrefix(textToFilter) {
+                    let indexFrom = textToFilter.index(textToFilter.startIndex, offsetBy: textToFilter.count)
+                    let itemSuffix = item.getTitle()[indexFrom...]
                     
-                    item.attributedTitle = NSMutableAttributedString(string: String(itemSuffix))
+                    item.setAttributedTitle(attributedTitle: NSMutableAttributedString(string: String(itemSuffix)))
                     filteredResults.append(item)
                 }
             }
@@ -512,7 +512,7 @@ open class SearchTextField: UITextField {
                 self.placeholderLabel?.attributedText = nil
             } else {
                 if let firstResult = filteredResults.first {
-                    self.placeholderLabel?.attributedText = firstResult.attributedTitle
+                    self.placeholderLabel?.attributedText = firstResult.getAttributedTitle()
                 } else {
                     self.placeholderLabel?.attributedText = nil
                 }
@@ -572,12 +572,12 @@ extension SearchTextField: UITableViewDelegate, UITableViewDataSource {
         cell!.textLabel?.textColor = theme.fontColor
         cell!.detailTextLabel?.textColor = theme.subtitleFontColor
         
-        cell!.textLabel?.text = filteredResults[(indexPath as NSIndexPath).row].title
-        cell!.detailTextLabel?.text = filteredResults[(indexPath as NSIndexPath).row].subtitle
-        cell!.textLabel?.attributedText = filteredResults[(indexPath as NSIndexPath).row].attributedTitle
-        cell!.detailTextLabel?.attributedText = filteredResults[(indexPath as NSIndexPath).row].attributedSubtitle
+        cell!.textLabel?.text = filteredResults[(indexPath as NSIndexPath).row].getTitle()
+        cell!.detailTextLabel?.text = filteredResults[(indexPath as NSIndexPath).row].getSubtitle()
+        cell!.textLabel?.attributedText = filteredResults[(indexPath as NSIndexPath).row].getAttributedTitle()
+        cell!.detailTextLabel?.attributedText = filteredResults[(indexPath as NSIndexPath).row].getAttributedSubtitle()
         
-        cell!.imageView?.image = filteredResults[(indexPath as NSIndexPath).row].image
+        cell!.imageView?.image = filteredResults[(indexPath as NSIndexPath).row].getImage()
         
         cell!.selectionStyle = .none
         
@@ -590,7 +590,7 @@ extension SearchTextField: UITableViewDelegate, UITableViewDataSource {
     
     public func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         if itemSelectionHandler == nil {
-            self.text = filteredResults[(indexPath as NSIndexPath).row].title
+            self.text = filteredResults[(indexPath as NSIndexPath).row].getTitle()
         } else {
             let index = indexPath.row
             itemSelectionHandler!(filteredResults, index)
@@ -636,29 +636,64 @@ public struct SearchTextFieldTheme {
 ////////////////////////////////////////////////////////////////////////
 // Filter Item
 
-open class SearchTextFieldItem {
+public protocol SearchTextFieldItem {
+    func getTitle() -> String!
+    func getSubtitle() -> String?
+    func getImage() -> UIImage?
+
+    func setAttributedTitle(attributedTitle: NSMutableAttributedString!);
+    func getAttributedTitle() -> NSMutableAttributedString?;
+
+    func setAttributedSubtitle(attributedSubtitle: NSMutableAttributedString!);
+    func getAttributedSubtitle() -> NSMutableAttributedString?;
+}
+
+open class DefaultSearchTextFieldItem:SearchTextFieldItem {
     // Private vars
-    fileprivate var attributedTitle: NSMutableAttributedString?
-    fileprivate var attributedSubtitle: NSMutableAttributedString?
+    fileprivate var _attributedTitle: NSMutableAttributedString?
+    fileprivate var _attributedSubtitle: NSMutableAttributedString?
     
     // Public interface
-    public var title: String
-    public var subtitle: String?
-    public var image: UIImage?
+    public var _title: String
+    public var _subtitle: String?
+    public var _image: UIImage?
     
     public init(title: String, subtitle: String?, image: UIImage?) {
-        self.title = title
-        self.subtitle = subtitle
-        self.image = image
+        self._title = title
+        self._subtitle = subtitle
+        self._image = image
     }
     
     public init(title: String, subtitle: String?) {
-        self.title = title
-        self.subtitle = subtitle
+        self._title = title
+        self._subtitle = subtitle
     }
     
     public init(title: String) {
-        self.title = title
+        self._title = title
+    }
+    public func getTitle() -> String! {
+        return self._title
+    }
+    public func getSubtitle() -> String? {
+        return self._subtitle
+    }
+    public func getImage() -> UIImage? {
+        return self._image
+    }
+
+    public func setAttributedTitle(attributedTitle: NSMutableAttributedString!) {
+        self._attributedTitle = attributedTitle
+    }
+    public func getAttributedTitle() -> NSMutableAttributedString? {
+        return self._attributedTitle
+    }
+
+    public func setAttributedSubtitle(attributedSubtitle: NSMutableAttributedString!) {
+        self._attributedSubtitle = attributedSubtitle
+    }
+    public func getAttributedSubtitle() -> NSMutableAttributedString? {
+        return self._attributedSubtitle
     }
 }
 
